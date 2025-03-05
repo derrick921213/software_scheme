@@ -13,43 +13,53 @@ public class hw1 {
         game.setPlayers(players[0], players[1]);
         game.generateChess();
         do {
+            clearScreen();
+            for(Player s: players){
+                System.out.println(s);
+            }
             game.showAllChess();
             if (UserChoose()) {
                 boolean CurrentPlayer = game.getCurrentPlayer();
                 game.setCurrentPlayer(!CurrentPlayer);
                 game.showAllChess();
             }
-            for(Player s: players){
-                System.out.println(s);
-            }
-//        }while(game.gameOver());
-        }while(counter-- > 0);
 
+        }while(game.gameOver());
+//        }while(counter-- > 0);
+    }
+    private static void clearScreen() {
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+    }
+    private static Point getPoint(){
+        System.out.print("範例輸入1,3: ");
+        String input = scanner.nextLine();
+        String[] inputArray = input.split(",");
+        if (inputArray.length != 2) {
+            System.out.println("輸入格式錯誤");
+            return null;
+        }
+        try {
+            int x = Integer.parseInt(inputArray[0].trim()) - 1;
+            int y = Integer.parseInt(inputArray[1].trim()) - 1;
+            if (x < 0 || x > 3 || y < 0 || y > 7) {
+                System.out.println("輸入範圍錯誤，x 應在 1~" + (3 + 1) + "，y 應在 1~" + (7 + 1));
+                return null;
+            }
+            return new Point(x, y);
+        } catch (NumberFormatException e) {
+            System.out.println("輸入格式錯誤，請確認輸入的是數字");
+            return null;
+        }
     }
     private static boolean UserChoose(){
         boolean CurrentPlayer = game.getCurrentPlayer();
         System.out.println((CurrentPlayer ? "Player A":"Player B") + " 選擇一個位置 x:(1~4), y:(1~8)");
-        System.out.print("範例輸入(1,3): ");
-        String input = scanner.nextLine();
-        if (input.startsWith("(") && input.endsWith(")")) {
-            input = input.substring(1, input.length() - 1);
-        }
-        else {
-            System.out.println("輸入格式錯誤");
+
+        Point temp = getPoint();
+        if (temp == null) {
             return false;
         }
-        String[] inputArray = input.split(",");
-        if (inputArray.length != 2) {
-            System.out.println("輸入格式錯誤");
-            return false;
-        }
-        int x = Integer.parseInt(inputArray[0]) - 1;
-        int y = Integer.parseInt(inputArray[1]) - 1;
-        if (x < 0 || x > 3 || y < 0 || y > 7) {
-            System.out.println("輸入範圍錯誤");
-            return false;
-        }
-        Point temp = new Point(x, y);
         Chess chess = game.getChess(temp);
         if(chess.isOpen()){
             return UserChooseAction(chess);
@@ -70,57 +80,51 @@ public class hw1 {
     }
     private static boolean UserChooseAction(Chess src_chess){
         System.out.println("請輸入目的位置 x:(1~4), y:(1~8)");
-        System.out.print("範例輸入(1,3): ");
-        String input = scanner.nextLine();
-        if (input.startsWith("(") && input.endsWith(")")) {
-            input = input.substring(1, input.length() - 1);
-        }
-        else {
-            System.out.println("輸入格式錯誤");
+        Point temp = getPoint();
+        if (temp == null) {
             return false;
         }
-        String[] inputArray = input.split(",");
-        if (inputArray.length != 2) {
-            System.out.println("輸入格式錯誤");
-            return false;
-        }
-        int x = Integer.parseInt(inputArray[0]) - 1;
-        int y = Integer.parseInt(inputArray[1]) - 1;
-        if (x < 0 || x > 3 || y < 0 || y > 7) {
-            System.out.println("輸入範圍錯誤");
-            return false;
-        }
-        Point temp = new Point(x, y);
         Chess dest_chess = game.getChess(temp);
         return game.move(src_chess, dest_chess);
     }
 }
 class ChessGame extends AbstractGame{
-    private final int x = 4;
-    private final int y = 8;
     private Chess[][] board;
     private final Player[] players = new Player[2];
     private boolean currentPlayer = true;
+    private int red_left = 16;
+    private int black_left = 16;
+    private int noProgressCount = 0;
+    private Chess lastMovedChess = null;
+    public void resetNoProgressCount() {
+        noProgressCount = 0;
+        lastMovedChess = null;
+    }
+    public void incrementNoProgressCount() {
+        noProgressCount++;
+    }
     public void showAllChess() {
         int maxLen = 0;
-        for (int i = 0; i < board.length; i++) {
-            for (int j = 0; j < board[i].length; j++) {
-                int len = board[i][j].toString().length();
+        for (Chess[] chess : board) {
+            for (Chess value : chess) {
+                int len = value.toString().length();
                 if (len > maxLen) {
                     maxLen = len;
                 }
             }
         }
         String format = "%-" + (maxLen + 2) + "s";
-        for (int i = 0; i < board.length; i++) {
-            for (int j = 0; j < board[i].length; j++) {
-                System.out.printf(format, board[i][j].toString());
+        for (Chess[] chess : board) {
+            for (Chess value : chess) {
+                System.out.printf(format, value.toString());
             }
             System.out.println();
         }
     }
     public void generateChess(){
-        board = new Chess[this.x][this.y];
+        final int x = 4;
+        final int y = 8;
+        board = new Chess[x][y];
         List<Chess> pieces = new ArrayList<>();
         pieces.add(new Chess(ChessType.KING, ChessType.KING.getWeight(), ChessColor.RED, null));
         pieces.add(new Chess(ChessType.KING, ChessType.KING.getWeight(), ChessColor.BLACK, null));
@@ -153,34 +157,28 @@ class ChessGame extends AbstractGame{
 
         Collections.shuffle(pieces, new Random());
         int index = 0;
-        for(int i = 0;i<this.x;i++){
-            for(int j = 0; j < this.y;j++){
+        for(int i = 0; i< x; i++){
+            for(int j = 0; j < y; j++){
                 Chess temp = pieces.get(index++);
                 board[i][j] = new Chess(temp.getType(), temp.getWeight(), temp.getSide(), new Point(i, j));
             }
         }
     }
-
     public Chess getChess(Point point){
         return board[point.x()][point.y()];
     }
-
     public void setChess(Point point, Chess chess){
         board[point.x()][point.y()] = chess;
     }
-
     public boolean getCurrentPlayer(){
         return currentPlayer;
     }
-
     public void setCurrentPlayer(boolean currentPlayer){
         this.currentPlayer = currentPlayer;
     }
-
     public Player[] getPlayers(){
         return players;
     }
-
     private void capture(Chess src_chess, Chess dest_chess) {
         Point srcPos = src_chess.getPosition();
         Point destPos = dest_chess.getPosition();
@@ -188,18 +186,56 @@ class ChessGame extends AbstractGame{
         board[srcPos.x()][srcPos.y()] = new Chess(null, 0, null, srcPos);
         src_chess.setPosition(destPos);
     }
-
     @Override
     public void setPlayers(Player a, Player b) {
         this.players[0] = a;
         this.players[1] = b;
     }
-
     @Override
     public boolean gameOver() {
-        return false;
-    }
+        Player thisPlayer = players[0].getSide() == ChessColor.RED ? players[0] : players[1];
+        Player otherPlayer = thisPlayer == players[0] ? players[1] : players[0];
+        if(red_left == 0 ){
+            System.out.println(otherPlayer.getName() + " 贏了");
+            return false;
+        }
+        if(black_left == 0 ){
+            System.out.println(thisPlayer.getName() + " 贏了");
+            return false;
+        }
+        int pieceCount = 0;
+        int redSum = 0;
+        int blackSum = 0;
+        for (Chess[] chess : board) {
+            for (Chess piece : chess) {
+                if (piece.getType() != null) {
+                    pieceCount++;
+                    if (piece.getSide() == ChessColor.RED) {
+                        redSum += piece.getWeight();
+                    } else if (piece.getSide() == ChessColor.BLACK) {
+                        blackSum += piece.getWeight();
+                    }
+                }
+            }
+        }
+        if (pieceCount == 3) {
+            System.out.println("只剩下三隻棋子，依棋子等級總和決定勝負");
+            if (redSum > blackSum) {
+                System.out.println(thisPlayer.getName() + " 贏了");
+            } else if (blackSum > redSum) {
+                System.out.println(otherPlayer.getName() + " 贏了");
+            } else {
+                System.out.println("和局");
+            }
+            return false;
+        }
 
+        if (noProgressCount >= 50) {
+            System.out.println("連續50步沒有翻子或吃子，和局");
+            return false;
+        }
+        return true;
+    }
     @Override
     public boolean move(Chess src_chess, Chess dest_chess) {
         if (src_chess.getSide() != players[currentPlayer?0:1].getSide()) {
@@ -211,6 +247,10 @@ class ChessGame extends AbstractGame{
             // 假設 dest_chess 是空的, 直接移動
             capture(src_chess, dest_chess);
             System.out.println(src_chess + " 移動到 " + dest_chess);
+            if (lastMovedChess != src_chess) {
+                lastMovedChess = src_chess;
+            }
+            incrementNoProgressCount();
             return true;
         }
         if (src_chess.getSide() == dest_chess.getSide()) {
@@ -223,12 +263,10 @@ class ChessGame extends AbstractGame{
             int srcY = src_chess.getPosition().y();
             int destX = dest_chess.getPosition().x();
             int destY = dest_chess.getPosition().y();
-
             if (srcX != destX && srcY != destY) {
                 System.out.println("炮只能直線移動");
                 return false;
             }
-
             int count = 0;
             if (srcX == destX) {
                 int minY = Math.min(srcY, destY);
@@ -247,19 +285,25 @@ class ChessGame extends AbstractGame{
                     }
                 }
             }
-
             if (count != 1) {
                 System.out.println("炮吃棋時中間必須隔一個棋子，目前隔了 " + count + " 個");
                 return false;
             }
+            resetNoProgressCount();
             capture(src_chess, dest_chess);
             System.out.println(src_chess + " 吃掉 " + dest_chess);
+            if (dest_chess.getSide() == ChessColor.RED) {
+                red_left--;
+            } else {
+                black_left--;
+            }
             return true;
         }
         if (src_chess.getWeight() < dest_chess.getWeight()) {
             // 假設 src_chess 的權重小於 dest_chess 的權重
             if (src_chess.getType() == ChessType.Pawns && dest_chess.getType() == ChessType.KING) {
                 src_chess.setPosition(dest_chess.getPosition());
+                resetNoProgressCount();
                 capture(src_chess, dest_chess);
                 System.out.println(src_chess + " 吃掉 " + dest_chess);
                 return true;
@@ -272,9 +316,13 @@ class ChessGame extends AbstractGame{
             System.out.println(src_chess + " 無法吃掉 " + dest_chess);
             return false;
         }
+        resetNoProgressCount();
         capture(src_chess, dest_chess);
-//        System.out.println(dest_chess.getPosition().add(1));
-//        System.out.println(src_chess.getPosition().add(1));
+        if (dest_chess.getSide() == ChessColor.RED) {
+            red_left--;
+        } else {
+            black_left--;
+        }
         System.out.println(src_chess + " 吃掉 " + dest_chess);
         return true;
     }
@@ -301,7 +349,6 @@ enum ChessType {
 enum ChessColor{
     RED,BLACK
 }
-
 record Point(int x, int y){
     public Point add(Point point){
         return new Point(this.x + point.x, this.y + point.y);
@@ -361,6 +408,7 @@ class Chess {
         if (!isOpen){
             return "X";
         }
+        assert name != null;
         return switch (name) {
             case KING -> isBlack ? "將" : "帥";
             case Mandarins -> isBlack ? "士" : "仕";
