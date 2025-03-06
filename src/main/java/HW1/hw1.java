@@ -2,7 +2,6 @@ package HW1;
 import java.util.*;
 
 public class hw1 {
-    static int counter = 32;
     static Scanner scanner = new Scanner(System.in);
     static ChessGame game = new ChessGame();
     static boolean isInit = true;
@@ -12,8 +11,12 @@ public class hw1 {
         players[1] = new Player("B", null);
         game.setPlayers(players[0], players[1]);
         game.generateChess();
+        clearScreen();
         do {
-            clearScreen();
+            if (game.getMsg() != null && !game.getMsg().isEmpty()) {
+                System.out.println("Info: "+game.getMsg());
+                game.setMsg("");
+            }
             for(Player s: players){
                 System.out.println(s);
             }
@@ -21,11 +24,9 @@ public class hw1 {
             if (UserChoose()) {
                 boolean CurrentPlayer = game.getCurrentPlayer();
                 game.setCurrentPlayer(!CurrentPlayer);
-                game.showAllChess();
             }
-
+            clearScreen();
         }while(game.gameOver());
-//        }while(counter-- > 0);
     }
     private static void clearScreen() {
         System.out.print("\033[H\033[2J");
@@ -61,10 +62,11 @@ public class hw1 {
             return false;
         }
         Chess chess = game.getChess(temp);
-        if(chess.isOpen()){
+        if(chess.isOpen() && !chess.isEmpty()){
             return UserChooseAction(chess);
         }
         chess.setOpen(true);
+        game.setMsg(String.format(chess+" 已翻開"));
         Player[] players = game.getPlayers();
         if(players[CurrentPlayer?0:1].getSide() == null && isInit){
             players[0].setSide(chess.getSide());
@@ -96,12 +98,19 @@ class ChessGame extends AbstractGame{
     private int black_left = 16;
     private int noProgressCount = 0;
     private Chess lastMovedChess = null;
+    private String Msg = "";
     public void resetNoProgressCount() {
         noProgressCount = 0;
         lastMovedChess = null;
     }
     public void incrementNoProgressCount() {
         noProgressCount++;
+    }
+    public String getMsg() {
+        return Msg;
+    }
+    public void setMsg(String msg) {
+        Msg = msg;
     }
     public void showAllChess() {
         int maxLen = 0;
@@ -186,6 +195,15 @@ class ChessGame extends AbstractGame{
         board[srcPos.x()][srcPos.y()] = new Chess(null, 0, null, srcPos);
         src_chess.setPosition(destPos);
     }
+    private boolean canMove(Chess src_chess, Chess dest_chess){
+        int w = Math.abs(dest_chess.getPosition().x() - src_chess.getPosition().x());
+        int h = Math.abs(dest_chess.getPosition().y() - src_chess.getPosition().y());
+        if((w == 1) ^ (h == 1)){
+            return true;
+        }
+        setMsg(String.format(src_chess+"只能移動一格"));
+        return false;
+    }
     @Override
     public void setPlayers(Player a, Player b) {
         this.players[0] = a;
@@ -196,11 +214,11 @@ class ChessGame extends AbstractGame{
         Player thisPlayer = players[0].getSide() == ChessColor.RED ? players[0] : players[1];
         Player otherPlayer = thisPlayer == players[0] ? players[1] : players[0];
         if(red_left == 0 ){
-            System.out.println(otherPlayer.getName() + " 贏了");
+            setMsg(String.format(otherPlayer.getName() + " 贏了"));
             return false;
         }
         if(black_left == 0 ){
-            System.out.println(thisPlayer.getName() + " 贏了");
+            setMsg(String.format(thisPlayer.getName() + " 贏了"));
             return false;
         }
         int pieceCount = 0;
@@ -219,34 +237,49 @@ class ChessGame extends AbstractGame{
             }
         }
         if (pieceCount == 3) {
-            System.out.println("只剩下三隻棋子，依棋子等級總和決定勝負");
+            setMsg("只剩下三隻棋子，依棋子等級總和決定勝負");
             if (redSum > blackSum) {
-                System.out.println(thisPlayer.getName() + " 贏了");
+                setMsg(String.format(thisPlayer.getName() + " 贏了"));
             } else if (blackSum > redSum) {
-                System.out.println(otherPlayer.getName() + " 贏了");
+                setMsg(String.format(otherPlayer.getName() + " 贏了"));
             } else {
-                System.out.println("和局");
+                setMsg("和局");
             }
             return false;
         }
 
         if (noProgressCount >= 50) {
-            System.out.println("連續50步沒有翻子或吃子，和局");
+            setMsg("連續50步沒有翻子或吃子，和局");
             return false;
         }
         return true;
     }
     @Override
     public boolean move(Chess src_chess, Chess dest_chess) {
-        if (src_chess.getSide() != players[currentPlayer?0:1].getSide()) {
-            // 假設 src_chess 不是當前玩家的棋子
-            System.out.println("不是你的回合");
+        if (src_chess.getSide() == null && src_chess.getType() == null) {
+            setMsg("輸入位置錯誤");
             return false;
         }
-        if(dest_chess.getSide() == null && dest_chess.getType() == null ){
+        if (src_chess.getSide() != players[currentPlayer?0:1].getSide()) {
+            // 假設 src_chess 不是當前玩家的棋子
+            setMsg("不是你的陣營");
+            return false;
+        }
+        int srcX = src_chess.getPosition().x();
+        int srcY = src_chess.getPosition().y();
+        int destX = dest_chess.getPosition().x();
+        int destY = dest_chess.getPosition().y();
+        if (srcX != destX && srcY != destY) {
+            setMsg(String.format(src_chess+"只能直線移動"));
+            return false;
+        }
+        if(dest_chess.getSide() == null && dest_chess.getType() == null){
             // 假設 dest_chess 是空的, 直接移動
+            if(!canMove(src_chess, dest_chess)){
+                return false;
+            }
             capture(src_chess, dest_chess);
-            System.out.println(src_chess + " 移動到 " + dest_chess);
+            setMsg(String.format(src_chess + " 移動到 " + dest_chess));
             if (lastMovedChess != src_chess) {
                 lastMovedChess = src_chess;
             }
@@ -255,18 +288,11 @@ class ChessGame extends AbstractGame{
         }
         if (src_chess.getSide() == dest_chess.getSide()) {
             // 假設 src_chess 與 dest_chess 是同一方的棋子
-            System.out.println("不能吃自己的棋子");
+            setMsg("不能吃自己的棋子");
             return false;
         }
+
         if (src_chess.getType() == ChessType.Cannons) {
-            int srcX = src_chess.getPosition().x();
-            int srcY = src_chess.getPosition().y();
-            int destX = dest_chess.getPosition().x();
-            int destY = dest_chess.getPosition().y();
-            if (srcX != destX && srcY != destY) {
-                System.out.println("炮只能直線移動");
-                return false;
-            }
             int count = 0;
             if (srcX == destX) {
                 int minY = Math.min(srcY, destY);
@@ -286,12 +312,12 @@ class ChessGame extends AbstractGame{
                 }
             }
             if (count != 1) {
-                System.out.println("炮吃棋時中間必須隔一個棋子，目前隔了 " + count + " 個");
+                setMsg(String.format(src_chess+"吃棋時中間必須隔一個棋子，目前隔了 " + count + " 個"));
                 return false;
             }
             resetNoProgressCount();
             capture(src_chess, dest_chess);
-            System.out.println(src_chess + " 吃掉 " + dest_chess);
+            setMsg(String.format(src_chess + " 吃掉 " + dest_chess));
             if (dest_chess.getSide() == ChessColor.RED) {
                 red_left--;
             } else {
@@ -302,18 +328,20 @@ class ChessGame extends AbstractGame{
         if (src_chess.getWeight() < dest_chess.getWeight()) {
             // 假設 src_chess 的權重小於 dest_chess 的權重
             if (src_chess.getType() == ChessType.Pawns && dest_chess.getType() == ChessType.KING) {
-                src_chess.setPosition(dest_chess.getPosition());
                 resetNoProgressCount();
                 capture(src_chess, dest_chess);
-                System.out.println(src_chess + " 吃掉 " + dest_chess);
+                setMsg(String.format(src_chess + " 吃掉 " + dest_chess));
                 return true;
             }
-            System.out.println(src_chess + " 無法吃掉 " + dest_chess);
+            setMsg(String.format(src_chess + " 無法吃掉 " + dest_chess));
             return false;
         }
         if(src_chess.getType() == ChessType.KING && dest_chess.getType() == ChessType.Pawns){
             // 假設 src_chess 是將，且 dest_chess 是卒
-            System.out.println(src_chess + " 無法吃掉 " + dest_chess);
+            setMsg(String.format(src_chess + " 無法吃掉 " + dest_chess));
+            return false;
+        }
+        if(!canMove(src_chess, dest_chess)){
             return false;
         }
         resetNoProgressCount();
@@ -323,7 +351,7 @@ class ChessGame extends AbstractGame{
         } else {
             black_left--;
         }
-        System.out.println(src_chess + " 吃掉 " + dest_chess);
+        setMsg(String.format(src_chess + " 吃掉 " + dest_chess));
         return true;
     }
 }
@@ -381,6 +409,9 @@ class Chess {
     public int getWeight(){
         return weight;
     }
+    public boolean isEmpty(){
+        return name == null && side == null;
+    }
     public ChessType getType() {
         return name;
     }
@@ -403,10 +434,10 @@ class Chess {
     public String toString(){
         boolean isBlack = side == ChessColor.BLACK;
         if (name == null && side == null){
-            return "_";
+            return "＿";
         }
         if (!isOpen){
-            return "X";
+            return "Ｘ";
         }
         assert name != null;
         return switch (name) {
