@@ -1,6 +1,9 @@
 package HW1;
 import java.util.*;
 
+/**
+ * 象棋進入點
+ */
 public class hw1 {
     static Scanner scanner = new Scanner(System.in);
     static ChessGame game = new ChessGame();
@@ -11,63 +14,95 @@ public class hw1 {
         players[1] = new Player("B", null);
         game.setPlayers(players[0], players[1]);
         game.generateChess();
+        // 遊戲第一次開始，先清空畫面
         clearScreen();
-        do {
+        while(true) {
+            if (!game.gameOver()){
+                System.out.println("Info: "+game.getMsg());
+                break;
+            }
+            // 檢查是否有訊息要顯示
             if (game.getMsg() != null && !game.getMsg().isEmpty()) {
                 System.out.println("Info: "+game.getMsg());
                 game.setMsg("");
             }
+            // 顯示玩家資訊
             for(Player s: players){
                 System.out.println(s);
             }
+            // 顯示棋盤
             game.showAllChess();
+            // 玩家開始操作
             if (UserChoose()) {
+                // 切換玩家
                 boolean CurrentPlayer = game.getCurrentPlayer();
                 game.setCurrentPlayer(!CurrentPlayer);
             }
             clearScreen();
-        }while(game.gameOver());
+        }
     }
+
+    /**
+     * 清空畫面
+     * @return void
+     */
     private static void clearScreen() {
         System.out.print("\033[H\033[2J");
         System.out.flush();
     }
+
+    /**
+     * 取得使用者輸入的座標
+     * @return Point
+     */
     private static Point getPoint(){
         System.out.print("範例輸入1,3: ");
         String input = scanner.nextLine();
+        // 輸入格式為 x,y
         String[] inputArray = input.split(",");
+        // 確認輸入格式
         if (inputArray.length != 2) {
-            System.out.println("輸入格式錯誤");
+            game.setMsg("輸入格式錯誤");
             return null;
         }
+        // 確認輸入的是數字
         try {
             int x = Integer.parseInt(inputArray[0].trim()) - 1;
             int y = Integer.parseInt(inputArray[1].trim()) - 1;
             if (x < 0 || x > 3 || y < 0 || y > 7) {
-                System.out.println("輸入範圍錯誤，x 應在 1~" + (3 + 1) + "，y 應在 1~" + (7 + 1));
+                game.setMsg(String.format("輸入範圍錯誤，x 應在 1~" + (3 + 1) + "，y 應在 1~" + (7 + 1)));
                 return null;
             }
             return new Point(x, y);
         } catch (NumberFormatException e) {
-            System.out.println("輸入格式錯誤，請確認輸入的是數字");
+            game.setMsg("輸入格式錯誤，請確認輸入的是數字");
             return null;
         }
     }
+    /**
+     * 使用者選擇
+     * @return boolean
+     */
     private static boolean UserChoose(){
+        // 獲取當前玩家
         boolean CurrentPlayer = game.getCurrentPlayer();
-        System.out.println((CurrentPlayer ? "Player A":"Player B") + " 選擇一個位置 x:(1~4), y:(1~8)");
-
+        // 獲取所有玩家
+        Player[] players = game.getPlayers();
+        System.out.println("Player "+(CurrentPlayer ? players[0].getName():players[1].getName()) + " 選擇一個位置 x:(1~4), y:(1~8)");
         Point temp = getPoint();
         if (temp == null) {
             return false;
         }
+        // 將使用者選取的位置中棋子拿起來
         Chess chess = game.getChess(temp);
+        // 如果棋子已經翻開且不是空的，則進行下一步
         if(chess.isOpen() && !chess.isEmpty()){
             return UserChooseAction(chess);
         }
         chess.setOpen(true);
         game.setMsg(String.format(chess+" 已翻開"));
-        Player[] players = game.getPlayers();
+
+        // 如果玩家還沒選擇陣營，則進行選擇
         if(players[CurrentPlayer?0:1].getSide() == null && isInit){
             players[0].setSide(chess.getSide());
             if (players[0].getSide() == ChessColor.RED){
@@ -80,6 +115,12 @@ public class hw1 {
         }
         return true;
     }
+
+    /**
+     * 玩家將指定以翻開的棋子動作
+     * @param src_chess
+     * @return boolean
+     */
     private static boolean UserChooseAction(Chess src_chess){
         System.out.println("請輸入目的位置 x:(1~4), y:(1~8)");
         Point temp = getPoint();
@@ -90,6 +131,10 @@ public class hw1 {
         return game.move(src_chess, dest_chess);
     }
 }
+
+/**
+ * 象棋棋盤
+ */
 class ChessGame extends AbstractGame{
     private Chess[][] board;
     private final Player[] players = new Player[2];
@@ -99,19 +144,42 @@ class ChessGame extends AbstractGame{
     private int noProgressCount = 0;
     private Chess lastMovedChess = null;
     private String Msg = "";
+
+    /**
+     * 重置沒有進展的次數
+     * @return void
+     */
     public void resetNoProgressCount() {
         noProgressCount = 0;
         lastMovedChess = null;
     }
+
+    /**
+     * 增加沒有進展的次數
+     * @return void
+     */
     public void incrementNoProgressCount() {
         noProgressCount++;
     }
+    /**
+     * 取得訊息
+     * @return String
+     */
     public String getMsg() {
         return Msg;
     }
+    /**
+     * 設定訊息
+     * @param msg
+     * @return void
+     */
     public void setMsg(String msg) {
         Msg = msg;
     }
+    /**
+     * 顯示所有棋子
+     * @return void
+     */
     public void showAllChess() {
         int maxLen = 0;
         for (Chess[] chess : board) {
@@ -130,41 +198,51 @@ class ChessGame extends AbstractGame{
             System.out.println();
         }
     }
+    /**
+     * 生成象棋
+     * @return void
+     */
     public void generateChess(){
         final int x = 4;
         final int y = 8;
         board = new Chess[x][y];
         List<Chess> pieces = new ArrayList<>();
+        // 生成將、帥
         pieces.add(new Chess(ChessType.KING, ChessType.KING.getWeight(), ChessColor.RED, null));
         pieces.add(new Chess(ChessType.KING, ChessType.KING.getWeight(), ChessColor.BLACK, null));
+        // 生成士、仕
         for (int i = 0; i < 2; i++) {
             pieces.add(new Chess(ChessType.Mandarins, ChessType.Mandarins.getWeight(), ChessColor.RED, null));
             pieces.add(new Chess(ChessType.Mandarins, ChessType.Mandarins.getWeight(), ChessColor.BLACK, null));
         }
-
+        // 生成象、相
         for (int i = 0; i < 2; i++) {
             pieces.add(new Chess(ChessType.Elephants, ChessType.Elephants.getWeight(), ChessColor.RED, null));
             pieces.add(new Chess(ChessType.Elephants, ChessType.Elephants.getWeight(), ChessColor.BLACK, null));
         }
+        // 生成車、俥
         for (int i = 0; i < 2; i++) {
             pieces.add(new Chess(ChessType.Rooks, ChessType.Rooks.getWeight(), ChessColor.RED, null));
             pieces.add(new Chess(ChessType.Rooks, ChessType.Rooks.getWeight(), ChessColor.BLACK, null));
         }
+        // 生成馬、傌
         for (int i = 0; i < 2; i++) {
             pieces.add(new Chess(ChessType.Knights, ChessType.Knights.getWeight(), ChessColor.RED, null));
             pieces.add(new Chess(ChessType.Knights, ChessType.Knights.getWeight(), ChessColor.BLACK, null));
         }
+        // 生成砲、炮
         for (int i = 0; i < 2; i++) {
             pieces.add(new Chess(ChessType.Cannons, ChessType.Cannons.getWeight(), ChessColor.RED, null));
             pieces.add(new Chess(ChessType.Cannons, ChessType.Cannons.getWeight(), ChessColor.BLACK, null));
         }
-
+        // 生成卒、兵
         for (int i = 0; i < 5; i++) {
             pieces.add(new Chess(ChessType.Pawns, ChessType.Pawns.getWeight(), ChessColor.RED, null));
             pieces.add(new Chess(ChessType.Pawns, ChessType.Pawns.getWeight(), ChessColor.BLACK, null));
         }
-
+        // 洗牌
         Collections.shuffle(pieces, new Random());
+        // 放置棋子
         int index = 0;
         for(int i = 0; i< x; i++){
             for(int j = 0; j < y; j++){
@@ -173,28 +251,70 @@ class ChessGame extends AbstractGame{
             }
         }
     }
+    /**
+     * 取得棋子
+     * @param point
+     * @return Chess
+     */
     public Chess getChess(Point point){
         return board[point.x()][point.y()];
     }
+    /**
+     * 設定棋子
+     * @param point
+     * @param chess
+     * @return void
+     */
     public void setChess(Point point, Chess chess){
         board[point.x()][point.y()] = chess;
     }
+    /**
+     * 取得當前玩家
+     * @return boolean
+     */
     public boolean getCurrentPlayer(){
         return currentPlayer;
     }
+    /**
+     * 設定當前玩家
+     * @param currentPlayer
+     * @return void
+     */
     public void setCurrentPlayer(boolean currentPlayer){
         this.currentPlayer = currentPlayer;
     }
+    /**
+     * 取得所有玩家
+     * @return Player[]
+     */
     public Player[] getPlayers(){
         return players;
     }
+    /**
+     * 吃掉對方的棋子
+     * @param src_chess
+     * @param dest_chess
+     * @return void
+     */
     private void capture(Chess src_chess, Chess dest_chess) {
         Point srcPos = src_chess.getPosition();
         Point destPos = dest_chess.getPosition();
+        if (dest_chess.getSide() == ChessColor.RED){
+            red_left--;
+        }
+        if (dest_chess.getSide() == ChessColor.BLACK){
+            black_left--;
+        }
         board[destPos.x()][destPos.y()] = src_chess;
         board[srcPos.x()][srcPos.y()] = new Chess(null, 0, null, srcPos);
         src_chess.setPosition(destPos);
     }
+    /**
+     * 檢查是否可以移動
+     * @param src_chess
+     * @param dest_chess
+     * @return boolean
+     */
     private boolean canMove(Chess src_chess, Chess dest_chess){
         int w = Math.abs(dest_chess.getPosition().x() - src_chess.getPosition().x());
         int h = Math.abs(dest_chess.getPosition().y() - src_chess.getPosition().y());
@@ -204,21 +324,29 @@ class ChessGame extends AbstractGame{
         setMsg(String.format(src_chess+"只能移動一格"));
         return false;
     }
+    /**
+     * 設置玩家
+     * @return void
+     */
     @Override
     public void setPlayers(Player a, Player b) {
         this.players[0] = a;
         this.players[1] = b;
     }
+    /**
+     * 判斷遊戲是否結束
+     * @return boolean
+     */
     @Override
     public boolean gameOver() {
         Player thisPlayer = players[0].getSide() == ChessColor.RED ? players[0] : players[1];
         Player otherPlayer = thisPlayer == players[0] ? players[1] : players[0];
         if(red_left == 0 ){
-            setMsg(String.format(otherPlayer.getName() + " 贏了"));
+            setMsg(String.format("Player "+otherPlayer.getName() + " 贏了"));
             return false;
         }
         if(black_left == 0 ){
-            setMsg(String.format(thisPlayer.getName() + " 贏了"));
+            setMsg(String.format("Player " +thisPlayer.getName() + " 贏了"));
             return false;
         }
         int pieceCount = 0;
@@ -254,6 +382,12 @@ class ChessGame extends AbstractGame{
         }
         return true;
     }
+    /**
+     * 移動棋子
+     * @param src_chess
+     * @param dest_chess
+     * @return boolean
+     */
     @Override
     public boolean move(Chess src_chess, Chess dest_chess) {
         if (src_chess.getSide() == null && src_chess.getType() == null) {
@@ -318,11 +452,6 @@ class ChessGame extends AbstractGame{
             resetNoProgressCount();
             capture(src_chess, dest_chess);
             setMsg(String.format(src_chess + " 吃掉 " + dest_chess));
-            if (dest_chess.getSide() == ChessColor.RED) {
-                red_left--;
-            } else {
-                black_left--;
-            }
             return true;
         }
         if (src_chess.getWeight() < dest_chess.getWeight()) {
@@ -346,15 +475,13 @@ class ChessGame extends AbstractGame{
         }
         resetNoProgressCount();
         capture(src_chess, dest_chess);
-        if (dest_chess.getSide() == ChessColor.RED) {
-            red_left--;
-        } else {
-            black_left--;
-        }
         setMsg(String.format(src_chess + " 吃掉 " + dest_chess));
         return true;
     }
 }
+/**
+ * 棋子種類
+ */
 enum ChessType {
     KING(7),
     Mandarins(6),
@@ -374,9 +501,15 @@ enum ChessType {
     }
 
 }
+/**
+ * 棋子顏色
+ */
 enum ChessColor{
     RED,BLACK
 }
+/**
+ * 座標
+ */
 record Point(int x, int y){
     public Point add(Point point){
         return new Point(this.x + point.x, this.y + point.y);
@@ -394,39 +527,83 @@ record Point(int x, int y){
         return new Point(0, 0);
     }
 }
+/**
+ * 棋子類別
+ */
 class Chess {
     private final ChessType name;
     private final int weight;
     private final ChessColor side;
     private Point position;
     private boolean isOpen = false;
+    /**
+     * 棋子建構子
+     * @param name
+     * @param weight
+     * @param side
+     * @param position
+     */
     public Chess(ChessType name,int weight, ChessColor side,Point position){
         this.name = name;
         this.weight = weight;
         this.side = side;
         this.position = position;
     }
+    /**
+     * 取得權重
+     * @return int
+     */
     public int getWeight(){
         return weight;
     }
+    /**
+     * 檢查是否為空
+     * @return boolean
+     */
     public boolean isEmpty(){
         return name == null && side == null;
     }
+    /**
+     * 取得棋子種類
+     * @return ChessType
+     */
     public ChessType getType() {
         return name;
     }
+    /**
+     * 取得棋子顏色
+     * @return ChessColor
+     **/
     public ChessColor getSide() {
         return side;
     }
+    /**
+     * 獲取棋子位置
+     * @return void
+     */
     public Point getPosition() {
         return position;
     }
+    /**
+     * 設置棋子位置
+     * @param position
+     * @return void
+     */
     public void setPosition(Point position) {
         this.position = position;
     }
+    /**
+     * 檢查是否翻開
+     * @return boolean
+     */
     public boolean isOpen() {
         return isOpen;
     }
+    /**
+     * 設置是否翻開
+     * @param open
+     * @return void
+     */
     public void setOpen(boolean open) {
         isOpen = open;
     }
@@ -470,7 +647,7 @@ class Player{
     }
     @Override
     public String toString(){
-        return String.format("Player %s, side %s", name, side);
+        return String.format("Player %s, side %s", name, side==null?"未選定":side);
     }
 }
 
